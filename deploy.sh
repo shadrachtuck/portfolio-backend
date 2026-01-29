@@ -43,10 +43,11 @@ git commit -m "$COMMIT_MSG" || echo "No changes to commit"
 
 # Push to GitHub
 echo -e "${YELLOW}Pushing to GitHub...${NC}"
-git push origin "$CURRENT_BRANCH"
+REMOTE_NAME=$(git remote | head -1)
+git push "$REMOTE_NAME" "$CURRENT_BRANCH"
 
 # Deploy to production server
 echo -e "${YELLOW}Deploying to production server...${NC}"
-ssh shadrach@backend.shadrach-tuck.dev "cd /var/www/html/portfolio-backend && git pull origin $CURRENT_BRANCH && echo 'Deployment complete on server!'"
+ssh shadrach@backend.shadrach-tuck.dev "cd /var/www/html/portfolio-backend && git pull $REMOTE_NAME $CURRENT_BRANCH && echo 'Deployment complete on server!'"
 
 echo -e "${GREEN}Deployment complete!${NC}"
