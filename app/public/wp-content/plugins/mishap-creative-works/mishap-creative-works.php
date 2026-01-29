@@ -883,3 +883,84 @@ add_filter('graphql_register_field_type_config', function($config, $type_name, $
     
     return $config;
 }, 10, 3);
+
+/**
+ * Enable CORS (Cross-Origin Resource Sharing) for GraphQL requests
+ * Allows frontend at shadrach-tuck.dev to access backend GraphQL API
+ * This must run early to set headers before any output
+ */
+function mishap_enable_graphql_cors() {
+    // Only process if this is a GraphQL request
+    $is_graphql = (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/graphql') !== false);
+    
+    if (!$is_graphql) {
+        return;
+    }
+    
+    // Get the origin from the request
+    $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+    
+    // Allowed origins (frontend domains)
+    $allowed_origins = array(
+        'https://shadrach-tuck.dev',
+        'http://shadrach-tuck.dev',
+        'https://www.shadrach-tuck.dev',
+        'http://www.shadrach-tuck.dev',
+        'http://localhost:5173', // Vite dev server
+        'http://localhost:3000', // Alternative dev port
+        'http://portfolio-backend.local', // Local development
+    );
+    
+    // Check if origin is allowed
+    if (in_array($origin, $allowed_origins)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+    } elseif (!empty($origin)) {
+        // If origin is set but not allowed, don't set CORS headers (security)
+        return;
+    }
+    
+    // Allow common headers
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    
+    // Allow common methods
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    
+    // Handle preflight OPTIONS request
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        header('Access-Control-Max-Age: 86400'); // Cache preflight for 24 hours
+        status_header(200);
+        exit(0);
+    }
+}
+add_action('init', 'mishap_enable_graphql_cors', 1);
+
+/**
+ * Add CORS headers via WordPress send_headers action (runs before output)
+ */
+function mishap_graphql_send_cors_headers() {
+    // Only for GraphQL endpoint
+    if (!isset($_SERVER['REQUEST_URI']) || strpos($_SERVER['REQUEST_URI'], '/graphql') === false) {
+        return;
+    }
+    
+    $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+    
+    $allowed_origins = array(
+        'https://shadrach-tuck.dev',
+        'http://shadrach-tuck.dev',
+        'https://www.shadrach-tuck.dev',
+        'http://www.shadrach-tuck.dev',
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://portfolio-backend.local',
+    );
+    
+    if (in_array($origin, $allowed_origins)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    }
+}
+add_action('send_headers', 'mishap_graphql_send_cors_headers', 1);
