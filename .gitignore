@@ -39,6 +39,7 @@ Thumbs.db
 # Environment & Config Files
 .env
 .env.local
+.env.production
 .env.*.local
 wp-config.local.php
 wp-config.production.php
