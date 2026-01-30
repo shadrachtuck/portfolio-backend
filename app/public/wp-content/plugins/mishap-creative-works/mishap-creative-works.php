@@ -16,6 +16,194 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * CRITICAL: Handle CORS for GraphQL BEFORE WordPress loads
+ * This must run as early as possible, even before WordPress initializes
+ * Note: For production, Nginx-level CORS is more reliable (see FIX_CORS_NGINX.md)
+ */
+function mishap_early_cors_handler() {
+    // #region agent log
+    $log_data = [
+        'sessionId' => 'debug-session',
+        'runId' => 'run1',
+        'hypothesisId' => 'A',
+        'location' => 'mishap-creative-works.php:23',
+        'message' => 'CORS handler entry',
+        'data' => [
+            'request_uri' => isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : 'not_set',
+            'request_method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'not_set',
+            'http_origin' => isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : 'not_set',
+        ],
+        'timestamp' => time() * 1000
+    ];
+    $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+    // #endregion
+    
+    // Check if this is a GraphQL request
+    $request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+    $is_graphql = (strpos($request_uri, '/graphql') !== false);
+    
+    // #region agent log
+    $log_data = [
+        'sessionId' => 'debug-session',
+        'runId' => 'run1',
+        'hypothesisId' => 'A',
+        'location' => 'mishap-creative-works.php:30',
+        'message' => 'GraphQL check result',
+        'data' => ['is_graphql' => $is_graphql, 'request_uri' => $request_uri],
+        'timestamp' => time() * 1000
+    ];
+    $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+    // #endregion
+    
+    if (!$is_graphql) {
+        return;
+    }
+    
+    $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+    
+    $allowed_origins = array(
+        'https://shadrach-tuck.dev',
+        'http://shadrach-tuck.dev',
+        'https://www.shadrach-tuck.dev',
+        'http://www.shadrach-tuck.dev',
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://portfolio-backend.local',
+    );
+    
+    // #region agent log
+    $log_data = [
+        'sessionId' => 'debug-session',
+        'runId' => 'run1',
+        'hypothesisId' => 'B',
+        'location' => 'mishap-creative-works.php:50',
+        'message' => 'Origin check',
+        'data' => ['origin' => $origin, 'is_allowed' => in_array($origin, $allowed_origins)],
+        'timestamp' => time() * 1000
+    ];
+    $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+    // #endregion
+    
+    // Handle preflight OPTIONS request immediately
+    if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        // #region agent log
+        $log_data = [
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'C',
+            'location' => 'mishap-creative-works.php:58',
+            'message' => 'OPTIONS preflight handling',
+            'data' => ['origin' => $origin],
+            'timestamp' => time() * 1000
+        ];
+        $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+        // #endregion
+        
+        if (in_array($origin, $allowed_origins) || empty($origin)) {
+            $allow_origin = !empty($origin) ? $origin : '*';
+            header('Access-Control-Allow-Origin: ' . $allow_origin);
+            if (!empty($origin)) {
+                header('Access-Control-Allow-Credentials: true');
+            }
+        }
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Max-Age: 86400');
+        header('Content-Length: 0');
+        http_response_code(200);
+        exit(0);
+    }
+    
+    // For actual requests, set CORS headers
+    if (in_array($origin, $allowed_origins)) {
+        // #region agent log
+        $log_data = [
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'D',
+            'location' => 'mishap-creative-works.php:80',
+            'message' => 'Setting CORS headers for allowed origin',
+            'data' => ['origin' => $origin],
+            'timestamp' => time() * 1000
+        ];
+        $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+        // #endregion
+        
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    } elseif (empty($origin)) {
+        // #region agent log
+        $log_data = [
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'E',
+            'location' => 'mishap-creative-works.php:90',
+            'message' => 'Setting CORS headers for empty origin',
+            'data' => [],
+            'timestamp' => time() * 1000
+        ];
+        $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+        // #endregion
+        
+        // Allow requests with no origin (same-origin or direct API calls)
+        header('Access-Control-Allow-Origin: *');
+    } else {
+        // #region agent log
+        $log_data = [
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'F',
+            'location' => 'mishap-creative-works.php:95',
+            'message' => 'Origin not allowed, no CORS headers set',
+            'data' => ['origin' => $origin],
+            'timestamp' => time() * 1000
+        ];
+        $log_file = dirname(dirname(dirname(dirname(__DIR__)))) . '/.cursor/debug.log';
+    $log_dir = dirname($log_file);
+    if (!is_dir($log_dir)) {
+        @mkdir($log_dir, 0755, true);
+    }
+    @file_put_contents($log_file, json_encode($log_data) . "\n", FILE_APPEND);
+        // #endregion
+    }
+}
+// Run this as early as possible - before WordPress loads
+add_action('plugins_loaded', 'mishap_early_cors_handler', 1);
+add_action('init', 'mishap_early_cors_handler', 0);
+
+/**
  * Register Custom Post Types
  */
 function mishap_register_post_types() {
